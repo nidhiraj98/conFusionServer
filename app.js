@@ -4,6 +4,8 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const mongoose = require('mongoose');
+var session = require('express-session');
+var fileStore = require('session-file-store')(session);
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -29,12 +31,20 @@ app.set('view engine', 'jade');
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser('12345-67890-24680-13579'));
+// app.use(cookieParser('12345-67890-24680-13579'));
+
+app.use(session({
+  name: 'session-id',
+  secret: '12345-67890-24680-13579',
+  saveUninitialized: false,
+  resave: false,
+  store: new fileStore()
+}));
 
 function auth(req, res, next) {
-  console.log(req.signedCookies);
+  console.log(req.session);
 
-  if(!req.signedCookies.user) {
+  if(!req.session.user) {
     var authHeader = req.headers.authorization;
 
     if(!authHeader) {
@@ -44,26 +54,27 @@ function auth(req, res, next) {
       err.status = 401;
       next(err);
     }
-
-    var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-
-    var username = auth[0];
-    var password = auth[1];
-
-    if (username === 'admin' && password === 'password') {
-      res.cookie('user', 'admin', {signed: true})
-      next();
-    }
     else {
-      var err = new Error('Invalid username or password');
+      var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
 
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
-      next(err);
+      var username = auth[0];
+      var password = auth[1];
+
+      if (username === 'admin' && password === 'password') {
+        req.session.user = 'admin';
+        next();
+      }
+      else {
+        var err = new Error('Invalid username or password');
+
+        res.setHeader('WWW-Authenticate', 'Basic');
+        err.status = 401;
+        next(err);
+      }
     }
   }
   else {
-    if (req.signedCookies.user === 'admin') {
+    if (req.session.user === 'admin') {
       next();
     }
     else {
