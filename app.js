@@ -41,48 +41,29 @@ app.use(session({
   store: new fileStore()
 }));
 
+app.use('/', indexRouter);
+app.use('/users', usersRouter);
+
 function auth(req, res, next) {
   console.log(req.session);
 
   if(!req.session.user) {
-    var authHeader = req.headers.authorization;
+    var err = new Error('You are not authenticated');
 
-    if(!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic');
+    err.status = 401;
+    return next(err);
+  }
+  else {
+    if(req.session.user === 'authenticated') {
+      next();
+    }
+    else {
       var err = new Error('You are not authenticated');
 
       res.setHeader('WWW-Authenticate', 'Basic');
       err.status = 401;
-      next(err);
-    }
-    else {
-      var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-
-      var username = auth[0];
-      var password = auth[1];
-
-      if (username === 'admin' && password === 'password') {
-        req.session.user = 'admin';
-        next();
-      }
-      else {
-        var err = new Error('Invalid username or password');
-
-        res.setHeader('WWW-Authenticate', 'Basic');
-        err.status = 401;
-        next(err);
-      }
-    }
-  }
-  else {
-    if (req.session.user === 'admin') {
-      next();
-    }
-    else {
-      var err = new Error('Invalid username or password');
-
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
-      next(err);
+      return next(err);
     }
   }
 }
@@ -91,8 +72,6 @@ app.use(auth); //User has to be authorised to use the resources following this
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
 app.use('/dishes', dishRouter);
 app.use('/promotions', promoRouter);
 app.use('/leaders', leaderRouter);
